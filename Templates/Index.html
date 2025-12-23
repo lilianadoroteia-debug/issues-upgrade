@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Pesquisa de Issues no Jira</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background: #fafafa; }
+    h1 { color: #0052CC; }
+    form { margin-bottom: 30px; padding: 15px; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    table { border-collapse: collapse; width: 100%; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    th { background: #f4f5f7; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    #filtroArea { margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+    <h1>CIBERBIT | Consultoria - Issues para Upgrade</h1>
+
+    <!-- FORMULARIO -->
+    <form method="POST" style="max-width: 100%; margin: auto; display: flex; gap: 20px; align-items: flex-start;">
+        <div style="width: 50%;">
+            <label for="versao">Versão:</label>
+            <input type="text" name="versao" id="versao" required style="width: 100px;"
+                   value="{{ versao_thom }}">
+
+            <label for="cliente">Cliente x:</label>
+            <select name="cliente" id="cliente" required>
+                <option value="" disabled>-- Selecione um cliente --</option>
+
+                <option value="JCS" {% if cliente_thom == "JCS" %}selected{% endif %}>Joaquim Chaves</option>
+                <option value="CUF" {% if cliente_thom == "CUF" %}selected{% endif %}>CUF</option>
+                <option value="TSH" {% if cliente_thom == "TSH" %}selected{% endif %}>Trofa Saúde</option>
+                <option value="IJ"  {% if cliente_thom == "IJ"  %}selected{% endif %}>Jenner</option>
+                <option value="RMG" {% if cliente_thom == "RMG" %}selected{% endif %}>Remagna</option>
+                <option value="OIH" {% if cliente_thom == "OIH" %}selected{% endif %}>OIH</option>
+                <option value="HPB" {% if cliente_thom == "HPB" %}selected{% endif %}>Hospital das Beiras</option>
+                <option value="ALM" {% if cliente_thom == "ALM" %}selected{% endif %}>Alameda</option>
+            </select>
+
+            <input type="submit" value="Pesquisar">
+        </div>
+    </form>
+
+    {% if issues %}
+    <h2>Resultados para Testes de Upgrade {{ cliente_thom }}</h2>
+
+    <!-- FILTRO IMPACTO -->
+    <div id="filtroArea">
+        <label for="btnFiltrarSim" style="font-weight: bold; color: #0052CC;">Ver Impacto "Sim" ou Prioridade != "--":</label>
+        <input type="checkbox" id="btnFiltrarSim" style="transform: scale(1.3); margin-left: 8px; cursor:pointer;">
+    </div>
+
+    <button id="exportCsv">Exportar para CSV - Importação JIRA</button>
+
+    <!-- TABELA -->
+    <table id="tabelaIssues">
+        <tr>
+            <th>Prioridade</th>
+            <th>Tipo Problema</th>
+            <th width="50%">Resumo</th>
+            <th>Versao</th>
+            <th>Projeto</th>
+            <th>Issue Upgrade</th>
+            <th>Origem</th>
+            <th>Teste Versao</th>
+            <th>Impacto Cliente</th>
+            <th>Cliente</th>
+            <th width="10%">Issue</th>
+        </tr>
+
+        {% for issue in issues %}
+        <tr>
+            <td>{{ issue.prioridade_teste }}</td>
+            <td>Subtarefa</td>
+            <td>Teste Upgrade {{ versao_thom }} | {{ issue.key }} - {{ issue.resumo }}</td>
+            <td>{{ versao_thom }}</td>
+            <td>{{ projeto }}</td>
+            <td>{{ issue_upgrade }}</td>
+            <td>{{ issue.origem }}</td>
+            <td>{{ issue.testes}}</td>
+            <td class="impactoCliente">{{ issue.impacto_cliente }}</td>
+            <td>{{ cliente_thom }}</td>
+            <td><a href="https://ciberbit.atlassian.net/browse/{{ issue.key }}" target="_blank">{{ issue.key }}</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+<script>
+// ---- RESTAURAR ESTADO DO CHECKBOX ----
+const checkbox = document.getElementById('btnFiltrarSim');
+const tabela = document.getElementById('tabelaIssues');
+
+// Restaurar estado salvo
+if (localStorage.getItem("filtroSim") === "1") {
+    checkbox.checked = true;
+}
+
+// ---- FUNÇÃO DE FILTRAGEM ----
+function aplicarFiltro() {
+    for (let i = 1; i < tabela.rows.length; i++) {
+        const impacto = tabela.rows[i].querySelector('.impactoCliente').innerText.trim();
+        const prioridade = tabela.rows[i].cells[0].innerText.trim();
+
+        if (checkbox.checked) {
+            // if (impacto === 'Não' & prioridade !== '--') {
+            if (impacto === 'Sim' || prioridade !== '--') {
+                tabela.rows[i].style.display = '';
+            } else {
+                tabela.rows[i].style.display = 'none';
+            }
+        } else {
+            tabela.rows[i].style.display = '';
+        }
+    }
+}
+
+// Aplicar filtro ao carregar
+if (tabela) aplicarFiltro();
+
+// Guardar estado ao mudar
+checkbox?.addEventListener('change', function() {
+    localStorage.setItem("filtroSim", checkbox.checked ? "1" : "0");
+    aplicarFiltro();
+});
+</script>
+
+<script>
+// ---- EXPORTAÇÃO CSV ----
+document.getElementById("exportCsv").addEventListener("click", function () {
+    const tabela = document.getElementById("tabelaIssues");
+    const linhas = tabela.querySelectorAll("tr");
+
+    const colunasExportar = [0, 1, 2, 5]; 
+
+    let csv = [];
+
+    linhas.forEach(linha => {
+        if (linha.style.display === "none") return;
+
+        const cols = linha.querySelectorAll("th, td");
+        let linhaCsv = [];
+
+        cols.forEach((col, index) => {
+            if (!colunasExportar.includes(index)) return;
+
+            let texto = col.innerText.replace(/"/g, '""');
+            linhaCsv.push(`"${texto}"`);
+        });
+
+        csv.push(linhaCsv.join(","));
+    });
+
+    const csvString = "\uFEFF" + csv.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+
+    const hoje = new Date().toISOString().slice(0,10);
+    const versao = document.getElementById("versao").value;
+    const cliente = document.getElementById("cliente").value;
+
+    link.download = `upgrade_${versao}_${cliente}_${hoje}.csv`;
+    link.click();
+});
+</script>
+
+</body>
+</html>
